@@ -1,4 +1,5 @@
-此部分为将深圳医院检验数据整合为JI项目格式：
+combine hospital 2 to JI format
+data processing:
 1.对应表：
 #以下为两个df中变量对应关系！
 #df4['#白细胞计数']=df3['wbc']
