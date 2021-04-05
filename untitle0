@@ -1,0 +1,148 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Apr 17 10:42:46 2018
+
+@author: Administrator
+"""
+from time import time
+from sklearn import svm
+##导入数据
+import scipy.io as sio
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.datasets import load_digits
+import joblib
+from sklearn.neural_network import MLPClassifier
+from xgboost import XGBClassifier
+import xgboost
+from sklearn import linear_model
+def do(filename,delete_num,delete_cout,delete_list):
+    print(delete_cout)
+    data=pd.read_csv(filename)
+    xr=data.values
+#    xr=np.delete(xr,57,axis=1) 
+    delete_rest=0
+    while delete_rest<delete_cout:
+        delete_list=delete_list.astype('int64')
+        xr=np.delete(xr,delete_list[delete_rest],axis=1)
+        delete_rest=delete_rest+1
+  
+    xr=np.delete(xr,delete_num,axis=1)        
+    g=xr.shape[1]
+#    rows_x=xr[ :1600, :g-1]
+#    rows_y=xr[ :1600,g-1]
+    #rows_t=xr[:100,:51]
+    #rows_g=xr[:100,52]
+    
+    #rows_x=rows_x[:,21:]
+    #rows_t=rows_t[:,21:]
+    
+    
+#    X = rows_x
+#    y = rows_y
+    
+    
+    ##对数据进行划分
+#    X_train=xr[ 160:1440, :g-1]
+#    X_test=xr[ :160, :g-1]
+#    X_test1=xr[ 1440:1600, :g-1]
+#    y_train=xr[ 160:1440,g-1]
+#    y_test=xr[ :160,g-1]
+#    y_test1=xr[ 1440:1600,g-1]
+
+
+
+    X_train=xr[ :800, :g-1]
+    X_test=xr[ 800:, :g-1]
+    y_train=xr[ :800,g-1]
+    y_test=xr[ 800:,g-1] 
+#    
+#    X_test=X_test1
+#    y_test=y_test1
+    
+    
+    ###对数据进行划分
+    #X_train,X_test,y_train,y_test = train_test_split(
+    #        X,y,test_size=0.1,random_state=15)
+    
+    
+    ##对数据进行特征缩放，对特征进行标准化处理
+    sc = StandardScaler()     #实例化了一个StandardScaler对象，用sc引用
+    sc.fit(X_train) 
+     #使用StandardScaler中的fit方法，可以计算训练数据中每个特征的μ（样本均值）和σ（标准差）
+    #通过调用transform方法，可以使用前面计算得到的μ和σ来对训练数据做标准化处理。
+    X_train_std = sc.transform(X_train)
+    X_test_std = sc.transform(X_test)
+    #rows_t = sc.transform(rows_t)
+    ##训练逻辑斯谛回归模型
+    
+#    GBDT = linear_model.LogisticRegression(penalty='l1')
+    GBDT = XGBClassifier(subsample=1,eta=0.05)
+#    GBDT = GradientBoostingClassifier()
+#    GBDT = svm.SVC(kernel='linear', gamma=1,C=1,probability=True) 
+    
+    t0 = time()
+    GBDT.fit(X_train,y_train)
+    t1 = time()
+    #joblib.dump(GBDT, "D:/GS/project/1706/TEXT/model.joblib")
+    
+    
+    ##预测：计算分类错误的个数
+    y_pred = GBDT.predict(X_test)
+    y_pro=GBDT.predict_proba((X_test))
+    #print('Misclassiffied samples:%d' % (y_test != y_pred).sum())
+    ##在这里输出的结果是有4个分类错误
+    
+    #绘制roc
+    i=-1
+    j=-1
+    y_pred=np.zeros(480)
+    yf_GBDT=np.zeros([3,500])
+    yi=np.linspace(0,1,500)
+    while (j<499):
+      j=j+1
+      i=-1
+      while (i<479):
+          i=i+1
+          if y_pro[i,0]<yi[j]:
+              y_pred[i]=1;
+          if y_pro[i,0]>yi[j]:
+              y_pred[i]=0;
+            
+    
+    #  print('Accuracy: %.4f' % accuracy_score(y_test,y_pred))
+    #  print('Accuracy1: %.4f' % accuracy_score(y_test,y_pred1))
+      yf_GBDT[0,j]=accuracy_score(y_test,y_pred)
+      tn, fp, fn, tp = confusion_matrix(y_test,y_pred).ravel()
+      Sensitivity = float(tp)/float(tp+fn) 
+      specificity = float(tn) / float(tn+fp)
+    
+      tn1, fp1, fn1, tp1 = confusion_matrix(y_test,y_pred).ravel()
+      Sensitivity1 = float(tp1)/float(tp1+fn1) 
+      specificity1 = float(tn1) / float(tn1+fp1)
+      yf_GBDT[1,j]=Sensitivity1
+      yf_GBDT[2,j]=specificity1;
+      
+#      import matplotlib.pyplot as plt
+#    plt.figure(1)
+#    plt.plot([0, 1], [0, 1], 'k--')
+#    
+#    plt.plot(1-yf_GBDT[2,:], yf_GBDT[1,:], label='GBDT')
+#    plt.ylabel('Sensitivity rate')
+#    plt.xlabel('1-specificity rate')
+#    plt.title('it 90')
+#    plt.legend(loc='best')
+#    plt.show()
+    sen=yf_GBDT[1,:]
+    spe=1-yf_GBDT[2,:]
+    AUC = np.trapz(sen,spe)
+    mean=np.mean(yf_GBDT[0,:])
+#    print('accuracy:',mean)
+    print('AUC',AUC)
+#    print(GBDT.feature_importances_)
+    return sen,spe,mean,AUC
