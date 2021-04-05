@@ -1,0 +1,148 @@
+  # -*- coding: utf-8 -*-
+  """
+  Created on Tue Apr 17 10:42:46 2018
+
+  @author: Administrator
+  """
+  from time import time
+
+  import random
+  ##导入数据
+  import scipy.io as sio
+  import numpy as np
+  import pandas as pd
+  from sklearn.model_selection import train_test_split
+  from sklearn.preprocessing import StandardScaler
+  from sklearn import linear_model
+  from sklearn import tree
+  from sklearn.linear_model import LinearRegression
+  from sklearn import svm
+  from sklearn import neighbors
+  from sklearn import ensemble
+  from sklearn.tree import ExtraTreeRegressor
+  from sklearn.ensemble import RandomForestClassifier
+  from sklearn.ensemble import GradientBoostingClassifier
+  from sklearn.metrics import accuracy_score
+  from sklearn.metrics import confusion_matrix
+  from sklearn.datasets import load_digits
+  import joblib
+  import matplotlib.pyplot as plt
+  from sklearn.naive_bayes import MultinomialNB
+  from xgboost import XGBClassifier
+  data=pd.read_csv(r"C:\Users\mjdee\hello\step1_learning\shenzhen_data\2020-12-9(use as validation).csv")
+
+  xr=data.values
+  xr1=data.values
+  #count=np.arange(0,60,1)
+  ##1
+  ##random.shuffle(count)
+  #
+  g=xr.shape[1]
+  #rows_x=xr[ :60, :g-1]
+  #rows_y=xr[ :60,g-1]
+  #i=0
+  #while i<60:
+  #    xr[i, : ]=xr1[count[i], :]
+  #    i=i+1
+
+
+  #rows_x=xr[ :60, :g-1]
+  #rows_y=xr[ :60,g-1]
+  #
+  #X = rows_x
+  #y = rows_y
+
+
+  ##对数据进行划分
+  X_train=xr[ :5000, :g-1]
+  X_test=xr[ 5000: , :g-1]
+  y_train=xr[ :5000,g-1]
+  y_test=xr[ 5000: ,g-1] 
+  #    
+  #X_test=X_test1
+  #y_test=y_test1
+
+
+
+
+
+  ###对数据进行划分
+  #X_train,X_test,y_train,y_test = train_test_split(
+  #        X,y,test_size=0.1,random_state=15)
+
+
+  ##对数据进行特征缩放，对特征进行标准化处理
+  sc = StandardScaler()     #实例化了一个StandardScaler对象，用sc引用
+  sc.fit(X_train) 
+  #使用StandardScaler中的fit方法，可以计算训练数据中每个特征的μ（样本均值）和σ（标准差）
+  #通过调用transform方法，可以使用前面计算得到的μ和σ来对训练数据做标准化处理。
+  X_train_std = sc.transform(X_train)
+  X_test_std = sc.transform(X_test)
+  #rows_t = sc.transform(rows_t)
+  ##训练逻辑斯谛回归模型
+
+
+  #GBDT =  MultinomialNB()
+  #GBDT = linear_model.LogisticRegression(C=1.0, penalty='l1', tol=1e-6)
+  GBDT = XGBClassifier(subsample=1,eta=0.05)
+  t0 = time()
+  GBDT.fit(X_train,y_train)
+  t1 = time()
+  #joblib.dump(GBDT, "D:/GS/project/1706/TEXT/model.joblib")
+
+
+  ##预测：计算分类错误的个数
+  y_pred = GBDT.predict(X_test)
+  #y_pred =1-y_pred
+  y_pro=GBDT.predict_proba((X_test))
+  #print('Misclassiffied samples:%d' % (y_test != y_pred).sum())
+  ##在这里输出的结果是有4个分类错误
+
+  #绘制roc
+  i=-1
+  j=-1
+  y_pred=np.zeros(2000)
+  yf_GBDT2=np.zeros([3,500])
+  yi=np.linspace(0,1,500)
+  while (j<499):
+    j=j+1
+    i=-1
+    while (i<1999):
+        i=i+1
+        if y_pro[i,0]<=yi[j]:
+            y_pred[i]=1;
+        if y_pro[i,0]>yi[j]:
+            y_pred[i]=0;
+
+  #  print('Accuracy: %.4f' % accuracy_score(y_test,y_pred))
+  #  print('Accuracy1: %.4f' % accuracy_score(y_test,y_pred1))
+  #  yf_GBDT[0,j]=accuracy_score(y_test,y_pred1)
+  #  tn, fp, fn, tp = confusion_matrix(y_test,y_pred).ravel()
+  #  Sensitivity = float(tp)/float(tp+fn) 
+  #  specificity = float(tn) / float(tn+fp)
+
+    tn1, fp1, fn1, tp1 = confusion_matrix(y_test,y_pred).ravel()
+    Sensitivity1 = float(tp1)/float(tp1+fn1) 
+    specificity1 = float(tn1) / float(tn1+fp1)
+  #  print(float(tp1)/float(tp1+fp1+0.000000000001))
+  #  print(Sensitivity1,specificity1)
+    yf_GBDT2[1,j]=Sensitivity1
+    yf_GBDT2[2,j]=specificity1;
+
+  plt.figure(1)
+  plt.plot([0, 1], [0, 1], 'k--')
+  #plt.xlim(0,1)
+  #plt.ylim(0, 1)
+  plt.plot(1-yf_GBDT2[2,:], yf_GBDT2[1,:], label='After feature select')
+  #plt.plot(1-yf_GBDT[2,:], yf_GBDT[1,:], label='GBDT')
+  plt.ylabel('Sensitivity rate')
+  plt.xlabel('1-specificity rate')
+  plt.title('AUC of machine learning')
+  plt.legend(loc='best')
+  plt.show()
+  sen=yf_GBDT2[1,:]
+  spe=1-yf_GBDT2[2,:]
+  AUC = np.trapz(sen,spe)
+  print(AUC)
+  #the_curve[76-g]=AUC
+  #print(76-g)
