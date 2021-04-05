@@ -1,0 +1,76 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Nov 23 18:09:20 2018
+
+
+@author: 44685
+"""
+from untitled0 import do
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
+lalala=0
+aucX=np.zeros([1,100])
+aucsum=np.zeros([90,75])
+fir=75
+delete_list=np.zeros(75)
+delete_list=delete_list-1
+filepath=["file:///C:/Users/mjdee/Desktop/ML/forlist/fortest0.csv"]
+
+
+the_curve=np.zeros(75)
+the_curve_test=np.zeros(75)
+while fir>1:
+    lalala=0
+    aucX=np.zeros([1,75])
+    while lalala<fir:
+        print(lalala)
+        i=0
+        y=np.zeros([1,500])
+        z=np.zeros([1,500])
+        mean=np.zeros(1)
+        while i<1:
+            y[i],z[i],mean[i],aucX[i,lalala]= do(filepath[0],lalala,75-fir,delete_list)
+            i=i+1;
+        j=0
+        y_sum=np.zeros(500)
+        z_sum=np.zeros(500)
+        while j<1:
+            y_sum=y_sum+y[j]
+            z_sum=z_sum+z[j]
+            j=j+1;
+        y_av=y_sum/1
+        z_av=z_sum/1
+        #plt.figure(1)
+        #plt.plot([0, 1], [0, 1], 'k--')
+        ##plt.xlim(0, 0.3)
+        ##plt.ylim(0.7, 1)
+        ##plt.plot(z_av_RL,y_av_RL,label='LR(AUC=0.842)')
+        ##plt.plot(z_av_SVM,y_av_SVM,label='SVM(AUC=0.802)')
+        ##plt.plot(z_av_GBDT,y_av_GBDT,label='GBDT(AUC=0.0.852)')
+        #plt.plot(z_av,y_av,label='XGBboost(AUC=0.857)')
+        spe=1-z_av
+        G=np.zeros([1,500])
+        G=y_av+spe
+        max_index=np.argmax(G)
+        #print('max sen+spe:',G[max_index])
+        #print('sen:',y_av[max_index])
+        #print('spe:',1-z_av[max_index])
+        #plt.ylabel('Sensitivity rate')
+        #plt.xlabel('1-specificity rate')
+        #plt.title('Receiver Operating Characteristic of Prediection Models')
+        #plt.legend(loc='best')
+        #plt.show()
+        AUC = np.trapz(y_av, z_av)
+#        aucX[9,lalala]=AUC
+        #print(AUC)1
+        #print(np.mean(mean))
+        lalala=lalala+1
+    the_feature=np.argmax(aucX)
+    delete_list[75-fir]=the_feature
+    the_curve[75-fir]=np.max(aucX)
+    aucsum[75-fir]=aucX
+    print(the_feature)
+    fir=fir-1
