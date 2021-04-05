@@ -1,0 +1,58 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Mar  6 14:46:53 2020
+
+@author: 44685
+"""
+import numpy as np
+import pandas as pd
+import random
+def shuf(the_set):
+    lenth=the_set.shape[0]
+    count=np.arange(0,lenth,1)
+    random.shuffle(count)
+    the_set1=np.zeros(the_set.shape)
+    i=0
+    while i<lenth:
+        the_set1[i, : ]=the_set[count[i], :]
+        i=i+1
+    return the_set1
+
+
+data_d=pd.read_csv("file:///C:/Users/44685/Desktop/1706/files/d.csv")
+
+xr_d=data_d.as_matrix()
+xr1_d=data_d.as_matrix()
+xr_d=shuf(xr1_d)
+
+
+data_l=pd.read_csv("file:///C:/Users/44685/Desktop/1706/files/l.csv")
+
+xr_l=data_l.as_matrix()
+xr1_l=data_l.as_matrix()
+
+xr_l=shuf(xr1_l)
+    
+cols=data_d.columns
+#temp = np.array(xr)
+train_set=np.vstack((xr_d[:105],xr_l[:695]))   
+validation_set=np.vstack((xr_d[105:],xr_l[695:]))
+
+the_train_set=shuf(train_set)
+the_validation_set=shuf(validation_set)
+
+temp=np.vstack((the_train_set,the_validation_set))
+
+
+save=pd.DataFrame(temp,columns=cols)
+save.to_csv("C:/Users/44685/Desktop/1706/files/forlist/fortest9.csv")
+
+#test_set=np.vstack((xr_d[168:210],xr_l[1112:1390]))   
+#
+#
+#the_test_set=shuf(test_set)
+#
+#
+#
+#save=pd.DataFrame(the_test_set,columns=cols)
+#save.to_csv("C:/Users/44685/Desktop/1706/files/fortest1.csv")
