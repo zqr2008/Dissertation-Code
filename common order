@@ -1,2 +1,21 @@
 #查看数据缺失比例
 ((df.isnull().sum())/df.shape[0]).sort_values(ascending=False).map(lambda x:"{:.2%}".format(x))
+
+bar_dict = ((df.notnull().sum())/df.shape[0]).sort_values(ascending=False).to_dict()
+label_opts=opts.LabelOpts(is_show=True,formatter='{@y}%')
+from pyecharts.charts import Bar
+from pyecharts import options as opts
+from pyecharts.globals import _WarningControl
+_WarningControl.ShowWarning = False
+
+c = (
+    Bar()
+    .add_xaxis(list(bar_dict))
+    .add_yaxis(
+        "非缺失数据占比",
+        [round(i*100,2) for i in list(bar_dict.values())],
+        label_opts=opts.LabelOpts(is_show=True,formatter='{@y}%'),
+    )
+    .set_global_opts(title_opts=opts.TitleOpts(title="缺失数据分析"))
+)
+c.render_notebook()
