@@ -1,0 +1,2 @@
+#查看数据缺失比例
+((df.isnull().sum())/df.shape[0]).sort_values(ascending=False).map(lambda x:"{:.2%}".format(x))
