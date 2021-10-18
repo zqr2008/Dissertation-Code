@@ -1,0 +1,28 @@
+With stag_1 AS
+(SELECT lab.subject_id,
+lab.stay_id,
+gcs_min,
+resp_rate_min,
+heart_rate_min,
+sbp_min,
+so2_min,
+pao2fio2ratio_min,
+ph_min,
+po2_min,
+wbc_min,
+(creatinine_min*88.4) AS Creatinine_min,
+lab.potassium_min,
+lab.sodium_min,
+bun_min,
+(lab.glucose_min/18) AS Glucose_min,
+(lab.hemoglobin_min*10) AS Hemoglobin_min,
+platelets_min,
+bilirubin_total_min FROM `physionet-data.mimic_derived.first_day_bg_art` art
+INNER JOIN `physionet-data.mimic_derived.first_day_lab` lab
+ON  art.stay_id=lab.stay_id
+INNER JOIN `physionet-data.mimic_derived.first_day_gcs` gcs
+ON art.stay_id=gcs.stay_id
+INNER JOIN `physionet-data.mimic_derived.first_day_vitalsign` vs
+ON art.stay_id=vs.stay_id)
+INNER JOIN 
+SELECT * FROM stag_1 
