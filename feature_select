@@ -5,7 +5,7 @@ Created on Fri Nov 23 18:09:20 2018
 
 @author: 44685
 """
-from untitled0 import do
+from untitle0 import do
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ aucsum=np.zeros([90,75])
 fir=75
 delete_list=np.zeros(75)
 delete_list=delete_list-1
-filepath=["file:///C:/Users/mjdee/Desktop/ML/forlist/fortest0.csv"]
+filepath=["file:///C:/Users/Meripet/Desktop/JI/fortest0andshenzhen.csv"]
 
 
 the_curve=np.zeros(75)
@@ -63,7 +63,7 @@ while fir>1:
         #plt.title('Receiver Operating Characteristic of Prediection Models')
         #plt.legend(loc='best')
         #plt.show()
-        AUC = np.trapz(y_av, z_av)
+        AUC = np.trapz(y_av, z_av)   
 #        aucX[9,lalala]=AUC
         #print(AUC)1
         #print(np.mean(mean))
@@ -74,3 +74,13 @@ while fir>1:
     aucsum[75-fir]=aucX
     print(the_feature)
     fir=fir-1
+    print(fir)
+
+plt.figure(1)
+plt.plot([0,70],[0,0.9],'k--')
+ax=plt.gca()
+plt.plot(the_curve, label='GBDT')
+plt.ylabel('Area under the curve')
+plt.xlabel('The number of deleted features')
+plt.legend(loc='best')
+plt.show()
