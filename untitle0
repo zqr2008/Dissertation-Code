@@ -21,6 +21,9 @@ from sklearn.neural_network import MLPClassifier
 from xgboost import XGBClassifier
 import xgboost
 from sklearn import linear_model
+import matplotlib.pyplot as plt
+
+
 def do(filename,delete_num,delete_cout,delete_list):
     print(delete_cout)
     data=pd.read_csv(filename)
@@ -57,10 +60,10 @@ def do(filename,delete_num,delete_cout,delete_list):
 
 
 
-    X_train=xr[ :800, :g-1]
-    X_test=xr[ 800:, :g-1]
-    y_train=xr[ :800,g-1]
-    y_test=xr[ 800:,g-1] 
+    X_train=xr[ :1281, :g-1]
+    X_test=xr[ 1281:, :g-1]
+    y_train=xr[ :1281,g-1]
+    y_test=xr[ 1281:,g-1] 
 #    
 #    X_test=X_test1
 #    y_test=y_test1
@@ -81,10 +84,10 @@ def do(filename,delete_num,delete_cout,delete_list):
     #rows_t = sc.transform(rows_t)
     ##训练逻辑斯谛回归模型
     
-#    GBDT = linear_model.LogisticRegression(penalty='l1')
-    GBDT = XGBClassifier(subsample=1,eta=0.05)
-#    GBDT = GradientBoostingClassifier()
-#    GBDT = svm.SVC(kernel='linear', gamma=1,C=1,probability=True) 
+    LOGI = linear_model.LogisticRegression(penalty='l1')
+    XGBO = XGBClassifier(subsample=1,eta=0.05,eval_metric=['logloss','auc','error'])
+    GBDT = GradientBoostingClassifier()
+    SVM = svm.SVC(kernel='linear', gamma=1,C=1,probability=True) 
     
     t0 = time()
     GBDT.fit(X_train,y_train)
@@ -101,13 +104,13 @@ def do(filename,delete_num,delete_cout,delete_list):
     #绘制roc
     i=-1
     j=-1
-    y_pred=np.zeros(480)
-    yf_GBDT=np.zeros([3,500])
-    yi=np.linspace(0,1,500)
+    y_pred=np.zeros(313) #1个数组，313个0
+    yf_GBDT=np.zeros([3,500]) #3个数组，每个数组500个0
+    yi=np.linspace(0,1,500) #500个数，为0到1的等差序列
     while (j<499):
       j=j+1
       i=-1
-      while (i<479):
+      while (i<312):
           i=i+1
           if y_pro[i,0]<yi[j]:
               y_pred[i]=1;
@@ -115,8 +118,8 @@ def do(filename,delete_num,delete_cout,delete_list):
               y_pred[i]=0;
             
     
-    #  print('Accuracy: %.4f' % accuracy_score(y_test,y_pred))
-    #  print('Accuracy1: %.4f' % accuracy_score(y_test,y_pred1))
+      #print('Accuracy: %.4f' % accuracy_score(y_test,y_pred))
+      #print('Accuracy1: %.4f' % accuracy_score(y_test,y_pred1))
       yf_GBDT[0,j]=accuracy_score(y_test,y_pred)
       tn, fp, fn, tp = confusion_matrix(y_test,y_pred).ravel()
       Sensitivity = float(tp)/float(tp+fn) 
@@ -128,21 +131,22 @@ def do(filename,delete_num,delete_cout,delete_list):
       yf_GBDT[1,j]=Sensitivity1
       yf_GBDT[2,j]=specificity1;
       
-#      import matplotlib.pyplot as plt
-#    plt.figure(1)
-#    plt.plot([0, 1], [0, 1], 'k--')
-#    
-#    plt.plot(1-yf_GBDT[2,:], yf_GBDT[1,:], label='GBDT')
-#    plt.ylabel('Sensitivity rate')
-#    plt.xlabel('1-specificity rate')
-#    plt.title('it 90')
-#    plt.legend(loc='best')
-#    plt.show()
+
+    plt.figure(1)
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.plot(1-yf_GBDT[2,:], yf_GBDT[1,:], label='GBDT')
+    plt.ylabel('Sensitivity rate')
+    plt.xlabel('1-specificity rate')
+    plt.title('it 90')
+    plt.legend(loc='best')
+    #plt.show()
     sen=yf_GBDT[1,:]
     spe=1-yf_GBDT[2,:]
     AUC = np.trapz(sen,spe)
     mean=np.mean(yf_GBDT[0,:])
-#    print('accuracy:',mean)
+    print('accuracy:',mean)
     print('AUC',AUC)
-#    print(GBDT.feature_importances_)
+    #print(GBDT.feature_importances_)
+    #plt.figure(2)
+    #plt.plot(75-fir,the_curve[75-fir]) 
     return sen,spe,mean,AUC
