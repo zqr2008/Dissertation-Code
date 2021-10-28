@@ -1,6 +1,22 @@
+----------------------------------------------------------------------
+-- This query(stag_1) extracts first day lab result based on the several 
+-- mimic_derived tables and join vent1
+-- stag_1 is the base table that all other tables based on(distince subject_id)
+-- ------------------------------------------------------------------
+
 With stag_1 AS
-(SELECT lab.subject_id,
-lab.stay_id,
+
+(
+SELECT * FROM 
+(SELECT 
+lab.subject_id AS subject_id,
+icu.hadm_id AS hadm_id,
+lab.stay_id AS stay_id,
+admittime,
+dischtime,
+dod,
+los_hospital,
+admission_age,	
 gcs_min,
 resp_rate_min,
 heart_rate_min,
@@ -11,22 +27,37 @@ ph_min,
 po2_min,
 wbc_min,
 (creatinine_min*88.4) AS Creatinine_min,
-lab.potassium_min,
-lab.sodium_min,
+lab.potassium_min AS potassium_min,
+lab.sodium_min AS sodium_min,
 bun_min,
 (lab.glucose_min/18) AS Glucose_min,
 (lab.hemoglobin_min*10) AS Hemoglobin_min,
 platelets_min,
-bilirubin_total_min FROM `physionet-data.mimic_derived.first_day_bg_art` art
+bilirubin_total_min,
+(heart_rate_min/sbp_min) AS xiuke_first,
+
+    CASE WHEN dod IS NOT NULL AND icu.dod <= DATETIME_ADD(icu.admittime, INTERVAL '7' DAY)
+         THEN 0 ELSE 1
+         END AS alive_7day,
+
+    CASE WHEN dod IS NOT NULL AND icu.dod <= DATETIME_ADD(icu.admittime, INTERVAL '30' DAY)
+         THEN 0 ELSE 1
+         END AS alive_30day,
+
+row_number() over (PARTITION by icu.subject_id ORDER BY admittime) AS chart_order
+
+FROM `physionet-data.mimic_derived.first_day_bg_art` art
 INNER JOIN `physionet-data.mimic_derived.first_day_lab` lab
 ON  art.stay_id=lab.stay_id
 INNER JOIN `physionet-data.mimic_derived.first_day_gcs` gcs
 ON art.stay_id=gcs.stay_id
 INNER JOIN `physionet-data.mimic_derived.first_day_vitalsign` vs
-ON art.stay_id=vs.stay_id)
-INNER JOIN 
-SELECT * FROM stag_1 
-
+ON art.stay_id=vs.stay_id
+INNER JOIN `physionet-data.mimic_derived.icustay_detail` icu
+ON icu.stay_id=art.stay_id
+)
+WHERE chart_order=1 AND admission_age>=18
+),
 
 -- ------------------------------------------------------------------
 -- This query(vent1) extracts first ventilation status based on the mimic_derived.ventilation
@@ -40,62 +71,50 @@ SELECT * FROM stag_1
 
 -- ------------------------------------------------------------------
 
-WITH vent1 AS
-(SELECT stay_id,starttime,endtime,ventilation_status,
-row_number() over (PARTITION by stay_id ORDER BY starttime) AS chart_order 
+vent_1 AS
+
+(
+SELECT * FROM
+(SELECT 
+stay_id,
+starttime,
+endtime,
+ventilation_status,
+row_number() over (PARTITION by stay_id ORDER BY starttime) AS chart_order
 FROM `physionet-data.mimic_derived.ventilation` vent
+)WHERE chart_order=1
 ),
--- ------------------------------------------------------------------
--- This query(stag_1) extracts first day lab result based on the several 
--- mimic_derived tables and join vent1
--- ------------------------------------------------------------------
-stag_1 AS
-(SELECT lab.subject_id,
-icu.hadm_id,
-lab.stay_id,
-admittime,dischtime,dod,
-los_hospital,
-admission_age,	
-gcs_min,
-resp_rate_min,
-heart_rate_min,
-sbp_min,
-so2_min,
-pao2fio2ratio_min,
-CASE WHEN ventilation_status='Oxygen' THEN 0
-     WHEN ventilation_status='HighFlow' THEN 2
-     WHEN ventilation_status='Trach' THEN 3
-     WHEN ventilation_status='NonInvasiveVent' THEN 3
-     WHEN ventilation_status='InvasiveVent' THEN 3 END AS O2_DEVICE_FIRST,
-ph_min,
-po2_min,
-wbc_min,
-(creatinine_min*88.4) AS Creatinine_min,
-lab.potassium_min,
-lab.sodium_min,
-bun_min,
-(lab.glucose_min/18) AS Glucose_min,
-(lab.hemoglobin_min*10) AS Hemoglobin_min,
-platelets_min,
-bilirubin_total_min,
-(heart_rate_min/sbp_min) AS xiuke_first,
-CASE WHEN dod IS NOT NULL AND icu.dod <= DATETIME_ADD(icu.admittime, INTERVAL '7' DAY)
-     THEN 1 ELSE 0
-     END AS alive_7day,
-CASE WHEN dod IS NOT NULL AND icu.dod <= DATETIME_ADD(icu.admittime, INTERVAL '30' DAY)
-     THEN 1 ELSE 0
-     END AS alive_30day,
-FROM `physionet-data.mimic_derived.first_day_bg_art` art
-INNER JOIN `physionet-data.mimic_derived.first_day_lab` lab
-ON  art.stay_id=lab.stay_id
-INNER JOIN `physionet-data.mimic_derived.first_day_gcs` gcs
-ON art.stay_id=gcs.stay_id
-INNER JOIN `physionet-data.mimic_derived.first_day_vitalsign` vs
-ON art.stay_id=vs.stay_id
-INNER JOIN `physionet-data.mimic_derived.icustay_detail` icu
-ON icu.stay_id=art.stay_id
-INNER JOIN vent1
-ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
+
+vent_2 AS
+(SELECT 
+stag_1.subject_id  AS subject_id,
+
+         CASE WHEN ventilation_status='Oxygen' 
+         AND  starttime<= DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+         THEN 0
+         WHEN ventilation_status='HighFlow' 
+         AND  starttime<= DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+         THEN 2
+         WHEN ventilation_status='Trach' 
+         AND  starttime<= DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+         THEN 3
+         WHEN ventilation_status='NonInvasiveVent' 
+         AND  starttime<= DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+         THEN 3
+         WHEN ventilation_status='InvasiveVent' 
+         AND  starttime<= DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+         THEN 3 
+         ELSE 0 END AS O2_DEVICE_FIRST,
+
+FROM vent_1
+RIGHT JOIN stag_1 
+ON stag_1.stay_id =vent_1.stay_id
+),
+
+oxygen AS
+(SELECT (o2_flow-21)/4	FROM 
+`physionet-data.mimic_derived.oxygen_delivery`
+
 ),
 
 -- ------------------------------------------------------------------
@@ -103,46 +122,48 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
 -- JI program comorbidities are the desired list.
 -- ------------------------------------------------------------------
 
- diag AS
+diag AS
 (
-    SELECT 
-        hadm_id
-        , CASE WHEN icd_version = 9 THEN icd_code ELSE NULL END AS icd9_code
-        , CASE WHEN icd_version = 10 THEN icd_code ELSE NULL END AS icd10_code
+SELECT 
+hadm_id, 
+         CASE WHEN icd_version = 9 THEN icd_code ELSE NULL END AS icd9_code,
+         CASE WHEN icd_version = 10 THEN icd_code ELSE NULL END AS icd10_code
     FROM `physionet-data.mimic_hosp.diagnoses_icd` diag
-)
-, com AS
+), 
+
+
+com AS
 (
-    SELECT
-        ad.hadm_id
+SELECT
+ad.hadm_id,
 
         -- TRAUMA_YN
-        , MAX(CASE WHEN
+         MAX(CASE WHEN
             SUBSTR(icd9_code, 1, 3) IN ('959')
             OR
             SUBSTR(icd10_code,1, 4) IN ('T149','T148')
             THEN 1 
-            ELSE 0 END) AS TRAUMA_YN
+            ELSE 0 END) AS TRAUMA_YN,
 
         -- DISCH_DX_RESP
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN'460' AND '519'
             OR
             SUBSTR(icd10_code, 1, 3) BETWEEN 'J00' AND 'J99'
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_RESP
+            ELSE 0 END) AS DISCH_DX_RESP, 
 
         -- DISCH_DX_INJURY
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '800' AND '959'
             OR
             icd10_code LIKE 'S%'
             OR
             SUBSTR(icd10_code, 1, 3) IN ('T14','T07')
-            THEN 1 ELSE 0 END) AS DISCH_DX_INJURY
+            THEN 1 ELSE 0 END) AS DISCH_DX_INJURY,
 
         -- DISCH_DX_NEOPLASMS
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '140' AND '172'
             OR
             SUBSTR(icd9_code, 1, 4) BETWEEN '1740' AND '1958'
@@ -167,56 +188,56 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             OR
             SUBSTR(icd10_code, 1, 3) BETWEEN 'C90' AND 'C97'
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_NEOPLASMS
+            ELSE 0 END) AS DISCH_DX_NEOPLASMS,
         
         -- Cancer_Therapy
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 4) IN ('V580')
             OR 
             SUBSTR(icd9_code, 1, 5) IN ('V5811','V5812')
             OR
             SUBSTR(icd10_code, 1, 4) IN ('Z510','Z511')
             THEN 1 
-            ELSE 0 END) AS Cancer_Therapy
+            ELSE 0 END) AS Cancer_Therapy,
             
 
         -- ACTIVE_MALIGNANCY(It is hard to tell active by icd_code,so it is coded same as
         -- 'Metastatic solid tumor')
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) IN ('196','197','198','199')
             OR 
             SUBSTR(icd10_code, 1, 3) IN ('C77','C78','C79','C80')
             THEN 1 
-            ELSE 0 END) AS ACTIVE_MALIGNANCY
+            ELSE 0 END) AS ACTIVE_MALIGNANCY,
 
         
         -- Hematologic cancer
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '200' AND '208'
             OR 
             SUBSTR(icd10_code, 1, 3) IN ('C81','C82','C83','C84','C85','C86','C88',
             'C90','C91','C92','C93','C94','C95','C96')
             THEN 1 
-            ELSE 0 END) AS Hematologic_cancer
+            ELSE 0 END) AS Hematologic_cancer,
         
         -- Metastatic solid tumor
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) IN ('196','197','198','199')
             OR 
             SUBSTR(icd10_code, 1, 3) IN ('C77','C78','C79','C80')
             THEN 1 
-            ELSE 0 END) AS metastatic_solid_tumor
+            ELSE 0 END) AS metastatic_solid_tumor,
 
         -- DISCH_DX_ABNORMAL_NOS
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) IN ('796')
             OR 
             SUBSTR(icd10_code, 1, 3) BETWEEN 'R00' AND 'R99'
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_ABNORMAL_NOS
+            ELSE 0 END) AS DISCH_DX_ABNORMAL_NOS,
 
         -- Cerebrovascular disease
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '430' AND '438'
             OR
             SUBSTR(icd9_code, 1, 5) = '36234'
@@ -227,20 +248,20 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             OR
             SUBSTR(icd10_code, 1, 4) = 'H340'
             THEN 1 
-            ELSE 0 END) AS cerebrovascular_disease
+            ELSE 0 END) AS cerebrovascular_disease,
         
         -- DISCH_DX_FLU_PNEUMONIA
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '480' AND '488'
             OR 
             SUBSTR(icd10_code, 1, 3) IN ('J09','J10','J11','J12','J13','J14','J15','J16'
             ,'J17','J18')
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_ABNORMAL_NOS
+            ELSE 0 END) AS DISCH_DX_FLU_PNEUMONIA,
 
         -- DISCH_DX_CHRONIC_LOWER_RESP(CHRONIC_LOWER_RESP adopted concept of Charlson Comorbidity Index 
         -- of chronic pulmonary disease)
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '490' AND '505'
             OR
             SUBSTR(icd9_code, 1, 4) IN ('4168','4169','5064','5081','5088')
@@ -251,12 +272,12 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             OR
             SUBSTR(icd10_code, 1, 4) IN ('I278','I279','J684','J701','J703')
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_CHRONIC_LOWER_RESP
+            ELSE 0 END) AS DISCH_DX_CHRONIC_LOWER_RESP,
 
 
         -- DISCH_DX_CIRC_DISEASE(Diseases of the circulatory system (excluding
         -- cerebrovascular diseases (430-438,I60‐I69))
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '390' AND '459'
             AND 
             SUBSTR(icd9_code, 1, 3) NOT IN ('430','431','432','433','434','435','436','437'
@@ -267,27 +288,27 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             SUBSTR(icd10_code, 1, 3) NOT IN ('I60','I61','I62','I63','I64','I65','I66','I67'
             ,'I68','I69')
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_CIRC_DISEASE
+            ELSE 0 END) AS DISCH_DX_CIRC_DISEASE,
 
         -- chronic heart failureIV
         -- ICD code do not have details for NYHA grade, so all chronic heart failure is labelled
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) IN ('428')
             OR
             SUBSTR(icd10_code, 1, 3) IN ('I50')
             THEN 1 
-            ELSE 0 END) AS chronic_heart_failureIV
+            ELSE 0 END) AS chronic_heart_failureIV,
 
         -- DISCH_DX_DIGESTIVE_DISEASE
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '520' AND '579'
             OR
             SUBSTR(icd10_code, 1, 3) BETWEEN 'K00' AND 'K93'
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_DIGESTIVE_DISEASE
+            ELSE 0 END) AS DISCH_DX_DIGESTIVE_DISEASE,
 
         -- Cirrhosis
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 4) IN ('5712','5715','5716')
             OR
             SUBSTR(icd10_code, 1, 3) IN ('K74')
@@ -296,19 +317,19 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             OR
             SUBSTR(icd10_code, 1, 5) IN ('P7881')
             THEN 1 
-            ELSE 0 END) AS Cirrhosis
+            ELSE 0 END) AS Cirrhosis,
 
         -- DISCH_DX_GU_DISEASE
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) BETWEEN '580' AND '629'
             OR
             SUBSTR(icd10_code, 1, 3) BETWEEN 'N00' AND 'N99'
             THEN 1
-            ELSE 0 END) AS DISCH_DX_GU_DISEASE
+            ELSE 0 END) AS DISCH_DX_GU_DISEASE,
 
 
         -- DISCH_DX_OTHER_DISEASE(icd9_code do not have a corresponding like icd10_code )
-        , MAX(CASE WHEN 
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) = '290'
             OR
             SUBSTR(icd9_code, 1, 4) IN ('2941','3312')
@@ -321,237 +342,465 @@ ON vent1.stay_id=art.stay_id WHERE chart_order=1 AND admission_age>18
             OR
             SUBSTR(icd10_code, 1, 3) BETWEEN 'F00' AND 'F99'
             THEN 1 
-            ELSE 0 END) AS DISCH_DX_OTHER_DISEASE
+            ELSE 0 END) AS DISCH_DX_OTHER_DISEASE,
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        -- Moderate or severe liver disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 4) IN ('4560','4561','4562')
+        -- STEROID_THERAPY
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('V5865')
             OR
-            SUBSTR(icd9_code, 1, 4) BETWEEN '5722' AND '5728'
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('I850','I859','I864','I982','K704','K711',
-                                                   'K721','K729','K765','K766','K767')
+            SUBSTR(icd10_code, 1, 4) IN ('Z795')
             THEN 1 
-            ELSE 0 END) AS severe_liver_disease
+            ELSE 0 END) AS STEROID_THERAPY,
 
-
-
-
-
-
-
-
-
-
-        -- Dementia
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) = '290'
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('2941','3312')
-            OR
-            SUBSTR(icd10_code, 1, 3) IN ('F00','F01','F02','F03','G30')
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('F051','G311')
-            THEN 1 
-            ELSE 0 END) AS dementia
-
-        -- Chronic pulmonary disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) BETWEEN '490' AND '505'
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('4168','4169','5064','5081','5088')
-            OR 
-            SUBSTR(icd10_code, 1, 3) BETWEEN 'J40' AND 'J47'
-            OR 
-            SUBSTR(icd10_code, 1, 3) BETWEEN 'J60' AND 'J67'
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('I278','I279','J684','J701','J703')
-            THEN 1 
-            ELSE 0 END) AS chronic_pulmonary_disease
-
-        -- Rheumatic disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) = '725'
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('4465','7100','7101','7102','7103',
-                                                  '7104','7140','7141','7142','7148')
-            OR
-            SUBSTR(icd10_code, 1, 3) IN ('M05','M06','M32','M33','M34')
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('M315','M351','M353','M360')
-            THEN 1 
-            ELSE 0 END) AS rheumatic_disease
-
-        -- Peptic ulcer disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) IN ('531','532','533','534')
-            OR
-            SUBSTR(icd10_code, 1, 3) IN ('K25','K26','K27','K28')
-            THEN 1 
-            ELSE 0 END) AS peptic_ulcer_disease
-
-        -- Mild liver disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) IN ('570','571')
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('0706','0709','5733','5734','5738','5739','V427')
-            OR
-            SUBSTR(icd9_code, 1, 5) IN ('07022','07023','07032','07033','07044','07054')
-            OR
-            SUBSTR(icd10_code, 1, 3) IN ('B18','K73','K74')
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('K700','K701','K702','K703','K709','K713',
-                                                   'K714','K715','K717','K760','K762',
-                                                   'K763','K764','K768','K769','Z944')
-            THEN 1 
-            ELSE 0 END) AS mild_liver_disease
-
-        -- Diabetes without chronic complication
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 4) IN ('2500','2501','2502','2503','2508','2509') 
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('E100','E10l','E106','E108','E109','E110','E111',
-                                                   'E116','E118','E119','E120','E121','E126','E128',
-                                                   'E129','E130','E131','E136','E138','E139','E140',
-                                                   'E141','E146','E148','E149')
-            THEN 1 
-            ELSE 0 END) AS diabetes_without_cc
-
-        -- Diabetes with chronic complication
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 4) IN ('2504','2505','2506','2507')
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('E102','E103','E104','E105','E107','E112','E113',
-                                                   'E114','E115','E117','E122','E123','E124','E125',
-                                                   'E127','E132','E133','E134','E135','E137','E142',
-                                                   'E143','E144','E145','E147')
-            THEN 1 
-            ELSE 0 END) AS diabetes_with_cc
-
-        -- Hemiplegia or paraplegia
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) IN ('342','343')
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('3341','3440','3441','3442',
-                                                  '3443','3444','3445','3446','3449')
-            OR 
-            SUBSTR(icd10_code, 1, 3) IN ('G81','G82')
-            OR 
-            SUBSTR(icd10_code, 1, 4) IN ('G041','G114','G801','G802','G830',
-                                                   'G831','G832','G833','G834','G839')
-            THEN 1 
-            ELSE 0 END) AS paraplegia
-
-        -- Renal disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 3) IN ('582','585','586','V56')
-            OR
-            SUBSTR(icd9_code, 1, 4) IN ('5880','V420','V451')
-            OR
-            SUBSTR(icd9_code, 1, 4) BETWEEN '5830' AND '5837'
-            OR
-            SUBSTR(icd9_code, 1, 5) IN ('40301','40311','40391','40402','40403','40412','40413','40492','40493')          
-            OR
-            SUBSTR(icd10_code, 1, 3) IN ('N18','N19')
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('I120','I131','N032','N033','N034',
-                                                   'N035','N036','N037','N052','N053',
-                                                   'N054','N055','N056','N057','N250',
-                                                   'Z490','Z491','Z492','Z940','Z992')
-            THEN 1 
-            ELSE 0 END) AS renal_disease
-
-        
-
-        -- Moderate or severe liver disease
-        , MAX(CASE WHEN 
-            SUBSTR(icd9_code, 1, 4) IN ('4560','4561','4562')
-            OR
-            SUBSTR(icd9_code, 1, 4) BETWEEN '5722' AND '5728'
-            OR
-            SUBSTR(icd10_code, 1, 4) IN ('I850','I859','I864','I982','K704','K711',
-                                                   'K721','K729','K765','K766','K767')
-            THEN 1 
-            ELSE 0 END) AS severe_liver_disease
-
-
-        -- AIDS/HIV
-        , MAX(CASE WHEN 
+        -- DISCH_DX_AIDS
+         MAX(CASE WHEN 
             SUBSTR(icd9_code, 1, 3) IN ('042','043','044')
             OR 
             SUBSTR(icd10_code, 1, 3) IN ('B20','B21','B22','B24')
             THEN 1 
-            ELSE 0 END) AS aids
-    FROM `physionet-data.mimic_core.admissions` ad
-    LEFT JOIN diag
-    ON ad.hadm_id = diag.hadm_id
-    GROUP BY ad.hadm_id
-)
-, ag AS
-(
-    SELECT 
-        hadm_id
-        , age
-        , CASE WHEN age <= 40 THEN 0
-    WHEN age <= 50 THEN 1
-    WHEN age <= 60 THEN 2
-    WHEN age <= 70 THEN 3
-    ELSE 4 END AS age_score
-    FROM `physionet-data.mimic_derived.age`
-)
+            ELSE 0 END) AS DISCH_DX_AIDS,
+
+        --Shock code is referred to the following:
+        --Hunley C, Murphy S M E, Bershad M, et al. 
+        --Utilization of Medical Codes for Hypotension in Shock Patients: 
+        --A Retrospective Analysis[J]. Journal of Multidisciplinary Healthcare, 2021, 14: 861.
+        
+        
+        --Hypovolemic_hemorrhagic_shock
+        
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78559')
+            OR 
+            SUBSTR(icd10_code, 1, 4) IN ('R571')
+            THEN 1 
+            ELSE 0 END) AS Hypovolemic_hemorrhagic_shock,
+        
+        --Hypovolemic_non-hemorrhagic_shock
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78550')
+            OR 
+            SUBSTR(icd10_code, 1, 4) IN ('R578','R579')
+            THEN 1 
+            ELSE 0 END) AS Hypovolemic_non_hemorrhagic_shock,
+
+        --Septic_shock
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78552')
+            OR 
+            SUBSTR(icd10_code, 1, 5) IN ('R6521')
+            THEN 1 
+            ELSE 0 END) AS Septic_shock,
+        
+        --Anaphylactic_shock
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('9950')
+            OR 
+            SUBSTR(icd10_code, 1, 4) IN ('T782')
+            THEN 1 
+            ELSE 0 END) AS Anaphylactic_shock,
+
+        --Liver_failure
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('4560','4561','4562')
+            OR
+            SUBSTR(icd9_code, 1, 4) BETWEEN '5722' AND '5728'
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('I850','I859','I864','I982','K704','K711',
+                                                   'K721','K729','K765','K766','K767')
+            THEN 1 
+            ELSE 0 END) AS Liver_failure,
+                
+        --Seizures
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('7803')
+            OR
+            SUBSTR(icd10_code, 1, 3) IN ('R56')
+            THEN 1 
+            ELSE 0 END) AS Seizures,
+        
+        --coma(GCS<8)
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78001')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN('R4020')
+            OR
+            SUBSTR(icd10_code, 1, 5) IN ('R40243','R40244')
+            THEN 1 
+            ELSE 0 END) AS coma,
+
+        --stupor
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78009')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('R401')
+            THEN 1 
+            ELSE 0 END) AS stupor,
+
+        --obtunded(state similar to lethargy )
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('78079')
+            OR
+            SUBSTR(icd10_code, 1, 5) IN ('R5383')
+            THEN 1 
+            ELSE 0 END) AS obtunded,
+        
+        --Agitation
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('3079')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('R451')
+            THEN 1 
+            ELSE 0 END) AS Agitation,
+
+        --Vigilance disturbance
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN ('79954')
+            OR
+            SUBSTR(icd10_code, 1, 6) IN ('R41843')
+            THEN 1 
+            ELSE 0 END) AS Vigilance_disturbance,
+        
+        --Confusion
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 5) IN  ('2982')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('R410')
+            THEN 1 
+            ELSE 0 END) AS Confusion,
+        
+        --Focal_neurologic_deficit
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 3) IN ('433','434','436')
+            OR
+            SUBSTR(icd9_code, 1, 3) IN ('430','431','432')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('F444')
+            THEN 1 
+            ELSE 0 END) AS Focal_neurologic_deficit,
+        
+        --Intracranial_effect(Compression of brain)
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('3484')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('G935')
+            THEN 1 
+            ELSE 0 END) AS Intracranial_effect,
+
+        --Acute_Abdomen
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('7890')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('R100')
+            THEN 1 
+            ELSE 0 END) AS Acute_Abdomen,
+
+        
+        --SAP(severe is not graded here)
+         MAX(CASE WHEN 
+            SUBSTR(icd9_code, 1, 4) IN ('5770')
+            OR
+            SUBSTR(icd10_code, 1, 4) IN ('K859')
+            THEN 1 
+            ELSE 0 END) AS SAP,
+        
+   
+  
+FROM `physionet-data.mimic_core.admissions` ad
+LEFT JOIN diag
+ON ad.hadm_id = diag.hadm_id
+GROUP BY ad.hadm_id
+),
+
+infection_1 AS
+(SELECT * FROM
+(SELECT 
+infe.subject_id AS subject_id,
+infe.stay_id AS stay_id,
+suspected_infection_time,
+row_number() over (PARTITION by infe.subject_id ORDER BY suspected_infection_time) AS chart_order 
+FROM  `physionet-data.mimic_derived.suspicion_of_infection` infe 
+) WHERE chart_order=1
+),
+
+infection_2 AS
+(SELECT 
+stag_1.subject_id AS subject_id,
+
+    CASE WHEN suspected_infection_time IS NOT NULL AND suspected_infection_time>= DATETIME_ADD(stag_1.admittime, INTERVAL '2' DAY)
+    THEN 1 ELSE 0
+    END AS in_hospital_infection,
+
+FROM infection_1
+RIGHT JOIN stag_1 
+ON stag_1.subject_id=infection_1.subject_id
+
+),
+
+-- ------------------------------------------------------------------
+-- This query(Use_Vasoactive_Drugs_1) extracts whether 
+-- Use_Vasoactive_Drugs(including dobutamine,dopamine,epinephrine
+-- norepinephrine,phenylephrine,vasopressin)
+
+-- ------------------------------------------------------------------
+
+Use_Vasoactive_Drugs_1 AS
+(SELECT * FROM(
 SELECT 
-    ad.subject_id
-    , ad.hadm_id
-    , ag.age_score
-    , myocardial_infarct
-    , congestive_heart_failure
-    , peripheral_vascular_disease
-    , cerebrovascular_disease
-    , dementia
-    , chronic_pulmonary_disease
-    , rheumatic_disease
-    , peptic_ulcer_disease
-    , mild_liver_disease
-    , diabetes_without_cc
-    , diabetes_with_cc
-    , paraplegia
-    , renal_disease
-    , malignant_cancer
-    , severe_liver_disease 
-    , metastatic_solid_tumor 
-    , aids
-    -- Calculate the Charlson Comorbidity Score using the original
-    -- weights from Charlson, 1987.
-    , age_score
-    + myocardial_infarct + congestive_heart_failure + peripheral_vascular_disease
-    + cerebrovascular_disease + dementia + chronic_pulmonary_disease
-    + rheumatic_disease + peptic_ulcer_disease
-    + GREATEST(mild_liver_disease, 3*severe_liver_disease)
-    + GREATEST(2*diabetes_with_cc, diabetes_without_cc)
-    + GREATEST(2*malignant_cancer, 6*metastatic_solid_tumor)
-    + 2*paraplegia + 2*renal_disease 
-    + 6*aids
-    AS charlson_comorbidity_index
+subject_id, 
+rate,
+starttime,
+endtime,
+row_number() over (PARTITION by subject_id ORDER BY starttime) AS chart_order
+FROM `physionet-data.mimic_icu.inputevents`
+WHERE itemid IN (221653,   -- dobutamine
+                 221662,   -- dopamine
+                 221289,   -- epinephrine
+                 221906,   -- norepinephrine
+                 221749,   -- phenylephrine
+                 222315)   -- vasopressin 
+                  AND rate != 0 AND rate IS NOT NULL 
+)WHERE chart_order=1
+),
+
+
+
+Use_Vasoactive_Drugs_2 AS
+(
+SELECT 
+stag_1.subject_id,
+    CASE WHEN rate IS NOT NULL AND starttime<= DATETIME_ADD(stag_1.admittime,  INTERVAL '6' hour)
+    THEN 1 ELSE 0
+    END AS Use_Vasoactive_Drugs
+
+FROM Use_Vasoactive_Drugs_1
+RIGHT JOIN stag_1 
+ON stag_1.subject_id=Use_Vasoactive_Drugs_1.subject_id
+),
+
+
+
+-- ------------------------------------------------------------------
+-- This query(arrhythmia) extracts whether arrhythmia
+-- Patients with SR (Sinus Rhythm) OR NULL record are label as 
+-- normal (0), all other rhythms are consider as arrhythmia(1)
+-- ------------------------------------------------------------------
+
+arrhythmia_1 AS
+( 
+SELECT * FROM
+(SELECT 
+subject_id,
+heart_rhythm,
+charttime,
+row_number() over (PARTITION by subject_id ORDER BY charttime) AS chart_order,
+FROM `physionet-data.mimic_derived.rhythm` 
+WHERE heart_rhythm NOT IN ('SR (Sinus Rhythm)')
+) 
+WHERE chart_order=1
+),
+
+arrhythmia_2 AS
+(
+SELECT 
+stag_1.subject_id,
+
+    CASE WHEN heart_rhythm IS NOT NULL AND charttime <DATETIME_ADD(stag_1.admittime, INTERVAL '6' hour)
+    THEN 1 ELSE 0
+    END AS arrhythmia
+
+FROM arrhythmia_1
+RIGHT JOIN stag_1 
+ON stag_1.subject_id =arrhythmia_1.subject_id 
+),
+
+stag_2 AS 
+(SELECT 
+stag_1.subject_id AS subject_id,
+stag_1.stay_id AS stay_id, 
+stag_1.admittime AS admittime,
+admission_age,
+TRAUMA_YN,
+DISCH_DX_RESP,
+DISCH_DX_INJURY,
+DISCH_DX_NEOPLASMS,
+Cancer_Therapy,
+ACTIVE_MALIGNANCY,
+Hematologic_cancer,
+metastatic_solid_tumor,
+DISCH_DX_ABNORMAL_NOS,
+cerebrovascular_disease,
+DISCH_DX_FLU_PNEUMONIA,
+DISCH_DX_CHRONIC_LOWER_RESP,
+DISCH_DX_CIRC_DISEASE,
+chronic_heart_failureIV,
+DISCH_DX_DIGESTIVE_DISEASE,
+Cirrhosis,
+DISCH_DX_GU_DISEASE,
+DISCH_DX_OTHER_DISEASE,
+STEROID_THERAPY,
+DISCH_DX_AIDS,
+in_hospital_infection,
+Use_Vasoactive_Drugs,
+arrhythmia,
+Hypovolemic_hemorrhagic_shock,
+Hypovolemic_non_hemorrhagic_shock,
+Septic_shock,
+Anaphylactic_shock,
+
+     CASE WHEN Hypovolemic_hemorrhagic_shock+Hypovolemic_non_hemorrhagic_shock+
+     Septic_shock+Anaphylactic_shock>=2
+    THEN 1 ELSE 0
+    END AS Mix_shock,
+
+Liver_failure,
+Seizures,
+coma,
+stupor,
+obtunded,
+Agitation,
+Vigilance_disturbance,
+Confusion,
+Focal_neurologic_deficit,
+Intracranial_effect,
+Acute_Abdomen,
+SAP,
+gcs_min,
+resp_rate_min,
+heart_rate_min,
+sbp_min,
+so2_min,
+pao2fio2ratio_min,
+O2_DEVICE_FIRST,
+ph_min,
+po2_min,
+wbc_min,
+Creatinine_min,
+potassium_min,
+sodium_min,
+bun_min,
+Glucose_min,
+Hemoglobin_min,
+platelets_min,
+bilirubin_total_min,
+xiuke_first,
+alive_7day,
+alive_30day
 FROM `physionet-data.mimic_core.admissions` ad
 LEFT JOIN com
 ON ad.hadm_id = com.hadm_id
-LEFT JOIN ag
-ON com.hadm_id = ag.hadm_id
-;
+INNER JOIN stag_1 
+ON stag_1.hadm_id =com.hadm_id 
+INNER JOIN vent_2 
+ON stag_1.subject_id  =vent_2.subject_id
+INNER JOIN infection_2 
+ON stag_1.subject_id =infection_2.subject_id 
+INNER JOIN Use_Vasoactive_Drugs_2
+ON stag_1.subject_id=Use_Vasoactive_Drugs_2.subject_id
+INNER JOIN arrhythmia_2 
+ON stag_1.subject_id =arrhythmia_2.subject_id
+),
+
+stag_3 AS 
+(SELECT  * FROM stag_2 
+WHERE admission_age IS NOT NULL AND 
+O2_DEVICE_FIRST IS NOT NULL	AND 
+ph_min IS NOT NULL	AND 
+po2_min	IS NOT NULL AND 
+wbc_min IS NOT NULL AND	
+Creatinine_min IS NOT NULL AND 
+potassium_min IS NOT NULL AND 	
+sodium_min IS NOT NULL AND 
+bun_min IS NOT NULL AND 
+Glucose_min	IS NOT NULL AND 
+Hemoglobin_min	IS NOT NULL AND 
+platelets_min IS NOT NULL AND 
+bilirubin_total_min	IS NOT NULL AND 
+xiuke_first IS NOT NULL
+),
+
+
+
+cheif AS (
+SELECT 
+cheif.subject_id,
+cheif.stay_id,
+intime,
+chiefcomplaint,
+temperature,
+heartrate,
+resprate,
+o2sat,
+sbp,	
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%chest pain%') THEN 1 
+     ELSE 0 END AS chest_pain,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER  ('%abdominal pain%') OR
+          UPPER (chiefcomplaint) LIKE UPPER('%abd pain%') THEN 1 
+     ELSE 0 END AS abdominal_pain,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%chest tightness%') THEN 1
+     ELSE 0 END AS chest_tightness,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%dyspnea%') OR
+          UPPER (chiefcomplaint) LIKE UPPER('%Difficulty breath%') OR 
+		  UPPER (chiefcomplaint) LIKE UPPER ('%SOB%') OR
+		  UPPER (chiefcomplaint) LIKE UPPER ('SHORTNESS OF BREATH') OR
+		  UPPER (chiefcomplaint) LIKE UPPER ('Respiratory distress') THEN 1 
+     ELSE 0 END AS dyspnea,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%fever%') THEN 1 
+     ELSE 0 END AS fever,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%syncope%') THEN 1 
+     ELSE 0 END AS syncope,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%fatigue%') OR 
+                (chiefcomplaint) LIKE UPPER ('%weakness%') THEN 1 
+     ELSE 0 END AS fatigue,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%palpitation%') THEN 1 
+     ELSE 0 END AS palpitation,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%Hematemesis%') OR
+          UPPER (chiefcomplaint) LIKE UPPER('%vomiting blood%') THEN 1 
+     ELSE 0 END AS Hematemesis,	 
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%bloody stool%') OR 
+          UPPER (chiefcomplaint) LIKE UPPER('%melena%') THEN 1 
+     ELSE 0 END AS bloody_stool,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%altered mental status%') OR 
+          UPPER (chiefcomplaint) LIKE UPPER('%Confusion%') THEN 1      
+	 ELSE 0 END AS altered_mental_status,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%headache%') OR
+          UPPER (chiefcomplaint) LIKE UPPER ('%HA%') THEN 1 
+     ELSE 0 END AS headache,
+CASE WHEN UPPER (chiefcomplaint) LIKE UPPER ('%vomit%') OR 
+          UPPER (chiefcomplaint) LIKE UPPER('%N/V/D%') OR 
+          UPPER (chiefcomplaint) LIKE UPPER('%N/V%')  THEN 1 
+     ELSE 0 END AS vomit
+
+FROM `physionet-data.mimic_ed.triage` cheif 
+INNER JOIN `physionet-data.mimic_ed.edstays` edstay 
+ON edstay.stay_id=cheif.stay_id
+WHERE chiefcomplaint IS NOT NULL
+
+),
+
+stag_4 AS 
+(
+SELECT 
+admission_age,
+cheif.*,
+stag_3.*,
+row_number() over (PARTITION by cheif.subject_id ORDER BY intime) AS chart_order,
+
+    CASE WHEN admittime<= DATETIME_ADD(intime, INTERVAL '7' DAY)
+    THEN 0 ELSE 1
+    END AS time_interval,
+
+
+ FROM cheif INNER JOIN stag_3 ON stag_3.subject_id=cheif.subject_id
+)
+
+SELECT * FROM stag_4 WHERE time_interval=1
+
+
+
+
+
+
+
+
+
