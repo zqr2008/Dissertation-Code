@@ -34,8 +34,8 @@ DISCH_DX_FLU_PNEUMONIA：是否有流感/肺炎：（是：1，否：0）
 DISCH_DX_CHRONIC_LOWER_RESP：是否有慢性下呼吸道疾病：（是：1，否：0）	
 DISCH_DX_CIRC_DISEASE：是否有循环系统疾病：（是：1，否：0）	 #该题为以下1个问题的上级问题#
  -chronic heart failureIV：是否有慢性心衰（NYHA IV）：（是：1，否：0）	
-DISCH_DX_DIGESTIVE_DISEASE：是否有消化系统疾病：（是：1，否：0）	
-Cirrhosis：是否有肝硬化：（是：1，否：0）
+DISCH_DX_DIGESTIVE_DISEASE：是否有消化系统疾病：（是：1，否：0）	 #该题为以下1个问题的上级问题#
+ -Cirrhosis：是否有肝硬化：（是：1，否：0）
 DISCH_DX_GU_DISEASE：是否有泌尿生殖系统疾病：（是：1，否：0）
 DISCH_DX_OTHER_DISEASE：是否有其他不能归类的诊断：（是：1，否：0）
 STEROID_THERAPY：是否正在接受激素治疗：（是：1，否：0）
@@ -72,7 +72,7 @@ HR_FIRST：心率（单位次/分）：（数值型）
 SBP_FIRST：收缩压（单位mmHg）：（数值型）	
 SpO2_FIRST：氧饱和度（单位%）：（数值型）	
 FiO2_FIRST：吸氧浓度（单位%）：（数值型）	
-O2_DEVICE_FIRST：供氧装置（：（数值型）	
+O2_DEVICE_FIRST：供氧装置：（鼻导管:0，室内空气:0，氧气面罩:1，文丘里面罩（或其他高流量吸氧装置）:2，呼吸机:3）	
 O2_FLOW_RATE_FIRST：氧流量（单位L/min）：（数值型）		
 -----------------------------------------------------------------------
 第五部分：实验室数据
