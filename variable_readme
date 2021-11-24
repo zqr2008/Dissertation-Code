@@ -15,7 +15,7 @@ syncope：是否有晕厥：（是：1，否：0）
 fatigue：是否有乏力：（是：1，否：0）
 palpitation：是否有心悸：（是：1，否：0）
 Hematemesis：是否有呕血：（是：1，否：0）
-Bloody stools：是否有呕血：（是：1，否：0）
+Bloody stools：是否有便血：（是：1，否：0）
 Altered mental status：是否有意识改变：（是：1，否：0）
 headache：是否有头痛：（是：1，否：0）
 vomiting：是否有呕吐：（是：1，否：0）
