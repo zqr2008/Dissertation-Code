@@ -12,19 +12,8 @@ library(showtext)
 
 windowsFonts(HEL=windowsFont("Helvetica CE 55 Roman"),
              TNM=windowsFont("Times New Roman"),
-             ARL=windowsFont("Arial"))
-font.add("songti", "simsun.ttc")
-
-# 方正字体+schoole bell (中英混合)
-font.add("FZ_School", "FZ_School.ttf")
-# 黑体
-font.add("simhei", "simhei.ttf")
-font.add("Arial","arial.ttf")
-
-# 黑体和Arial的合体
-font.add("HeiArial", "HeiArial.ttf")
-showtext.auto()  ## automatically use showtext for new devices
-
+             ARL=windowsFont("Arial"),
+             songti=windowsFont("Adobe 宋体 Std L"))
 
 
 
@@ -42,11 +31,11 @@ df<-df%>%mutate(第1次随机=X2,第2次随机=X2+X3,第3次随机=X2+X3+X4,第4
                 第9次随机=X2+X3+X4+X5+X6+X7+X8+X9+X10,
                 第10次随机=X2+X3+X4+X5+X6+X7+X8+X9+X10+X11)
 
-df<-df[,-(2:12)]
+df<-df[1:25,-(2:12)]
 df<-melt(df,id=c("X1","id"))
 
 
-swimmer_plot(df = df,
+swim<-swimmer_plot(df = df,
              id = "id",
              end = "value",
              name_fill = "variable",
@@ -62,9 +51,10 @@ swimmer_plot(df = df,
                                )) +
   labs(y = "变量得分",
        x = "变量名称")+swimmer_text(df_text = df,id="id",label="X1",adj.y = 0,
-                                adj.x = -250,size=3.5)+
-  guides(fill=guide_legend(title="随机次数"))
-
-
-
-
+                                adj.x = -450,size=7,family="songti")+
+  guides(fill=guide_legend(title="随机次数"))+
+  theme(axis.title.y=element_text(family="songti",face="bold",size=20), 
+        axis.title.x=element_text(family="songti",face="bold",size = 20),
+        legend.title =element_text(family = "songti", face="bold",size = 20),
+        legend.text=element_text(family = "songti", face="bold",size = 20),
+        plot.title=element_text(family="songti",face="bold")) 
