@@ -1,6 +1,4 @@
-
-
-
+#此部分把重要性排序使用swim plot的方法画出来
 library(RColorBrewer) # 调色板
 library(scales)       # 将y轴转化成百分比格式
 library(tidyverse)    # 作图
@@ -33,7 +31,6 @@ df<-df%>%mutate(第1次随机=X2,第2次随机=X2+X3,第3次随机=X2+X3+X4,第4
 
 df<-df[1:25,-(2:12)]
 df<-melt(df,id=c("X1","id"))
-
 
 swim<-swimmer_plot(df = df,
              id = "id",
