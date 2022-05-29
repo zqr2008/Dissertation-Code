@@ -1,3 +1,4 @@
+#此部分的目的是为了检验真实的情况与预测的情况是否有变化
 
 jresult_table$control=(jresult_table$control_J==jresult_table$真实死活)
 jresult_table$experi=(jresult_table$experi_J==jresult_table$真实死活)
