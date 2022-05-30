@@ -121,15 +121,6 @@ dataforML<-dplyr::mutate_at(dataforML, .vars = vars(65), .fun = function(x) ifel
 
 write.table(dataforML,"C:/Users/mjdee/Desktop/JI-2020/ML/PUTH2.csv",row.names=FALSE,col.names=TRUE,sep=",")
 
-
-
-
-
-
-
-
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
